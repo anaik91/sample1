@@ -1,0 +1,292 @@
+﻿{
+    // Set the default assembly so the type definitions below don't have to be fully-qualified .NET type names
+    "defaultAssembly": "CatchPoint.Agent.Services.TxEng.Library",
+
+    "modules": [
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // CONFIGURATION MODULE SETTINGS SECTION
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        {
+            "type": "CatchPoint.Agent.Foundation.Policy.PolicySettingsModule, CatchPoint.Agent.Foundation.Policy",
+            "parameters": {
+                // Note: Have to use simple string-string dictionary -- Microsoft.Extensions can't do the nested
+                // lists/arrays/collections in JSON
+                // dictionary of settings (string key, string value)
+                "configurationSettings": {
+
+                    // DEG 12/18/18 - This is currently intentionally set to an empty string because the
+                    // HawkSyntheticNodeService is responsible for setting this value as an environment variable of the
+                    // same name to the configuration environment under which it is running. That is how Agent 2.0
+                    // knows which execution environment it is running under.
+                    //
+                    // NOTE: if you execute the TxEng standalone, this is a required setting and should be provided
+                    // via environment variable.
+                    "ActiveConfigurationEnvironment": "", // DEV, STAGE, QA, PROD, INT and variations
+
+                    // #region Logging settings (all environments)
+                    // RL 8/17/18 - Minimal logging per B-07447
+                    // *** TEMPORARY SETTINGS - WILL BE MOVED TO NEW MICROSERVICE GLOBAL POLICY OBJECT. DO NOT TOUCH!!! ***
+                    //"GlobalLogger_MinimumLogLevel": "verbose", // default is debug
+                    "GlobalLogger_FileLogEnable": "true",
+                    "GlobalLogger_FileLogBaseFilename": "txeng.log",
+                    "GlobalLogger_FileLogDirectoryLinux": "/var/CatchPoint/Agent/Services/TxEng/Logs",
+                    "GlobalLogger_FileLogDirectoryWindows": "c:\\ProgramData\\CatchPoint\\Agent\\Services\\TxEng\\Logs",
+                    // #endregion
+
+                    // #region Common settings (i.e. no envrionment prefix means "all environments")
+                    // #region TRACEROUTE-* Test Monitor Global Overrides
+                    "TraceRouteTestMonitor_MinPort": "48000", // Harmony TR gets 66% of the defined port pool for TR-TCP tests
+                    "TraceRouteTestMonitor_MaxPort": "48733",
+                    // #endregion
+                    // BUG 119544 work-around pending longer-term fix
+                    "MicroserviceApplication_TerminateOnUnhandledException": "false",
+                    // #endregion
+
+                    // #region DEV settings
+                    //"DEV|property": "setting",
+                    //"DEV|TxTestContext_InterpreterPathWindows": "C:\\3genlabs\\code\\apps\\Hawk\\Synthetic\\Agent\\Services\\Tools\\TxInterp",
+                    // #endregion
+
+                    // #region DEV-RL settings (Richard)
+                    //"DEV|property": "setting",
+                    "DEV-RL|TxTestContext_InterpreterPathWindows": "C:\\3genlabs\\code2\\apps\\Hawk\\Synthetic\\Agent\\Services\\Tools\\TxInterp",
+                    // #endregion
+
+                    // #region DEV-EV settings (Emilia)
+                    //"DEV|property": "setting",
+                    "DEV-EV|TxTestContext_InterpreterPathLinux": "/home/emiliavanderwerf/3genlabs/code/apps/Hawk/Synthetic/Agent/Services/Tools/TxInterp",
+                    "DEV-EV|TestMonitorHosting_PluginsRootDirectoryLinux": "/home/emiliavanderwerf/3genlabs/code/apps/Hawk/Synthetic/Monitor/Plugins/SingleObjectTestMonitor/bin/Debug/netcoreapp2.1/publish"
+                    // #endregion
+                }
+            }
+        },
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // #region LOG-ENABLED LINE-OF-BUSINESS COMPONENTS MODULE SECTION
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        // Registration of the microservice's entry class that must be derived from the Microservice class defined in
+        // the MicroserviceProcess library. This entry class is responsible for the lifetime of the microservice and
+        // must bootstrap all necessary LOB object needed for the microservice to carry out its responsibilities.
+        {
+            "type": "CatchPoint.Agent.Foundation.Logging.RegisterTypeModule, CatchPoint.Agent.Foundation.Logging",
+            "parameters": {
+                "type": "CatchPoint.Agent.Services.TxEng.Library.Internal.TxEngMicroservice, CatchPoint.Agent.Services.TxEng.Library",
+                "services": [ "CatchPoint.Agent.Services.MicroserviceProcess.IMicroservice, CatchPoint.Agent.Services.MicroserviceProcess" ],
+                "instanceScope": "perlifetimescope"
+            }
+        },
+
+        // This is the central singleton LOB class that is the receiver of all message traffic to the microservice.
+        {
+            "type": "CatchPoint.Agent.Foundation.Logging.RegisterTypeModule, CatchPoint.Agent.Foundation.Logging",
+            "parameters": {
+                "type": "CatchPoint.Agent.Services.TxEng.Library.Internal.TxEngModel, CatchPoint.Agent.Services.TxEng.Library",
+                "services": [ "CatchPoint.Agent.Services.TxEng.Library.Internal.ITxEngModel, CatchPoint.Agent.Services.TxEng.Library" ],
+                "instanceScope": "perlifetimescope"
+            }
+        },
+
+        {
+            "type": "CatchPoint.Agent.Foundation.Logging.RegisterTypeModule, CatchPoint.Agent.Foundation.Logging",
+            "parameters": {
+                "type": "CatchPoint.Agent.Services.TxEng.Library.Internal.TestExecutionModeSelector, CatchPoint.Agent.Services.TxEng.Library",
+                "services": [ "CatchPoint.Agent.Services.TxEng.Library.Internal.ITestExecutionModeSelector, CatchPoint.Agent.Services.TxEng.Library" ],
+                "instanceScope": "perlifetimescope" // container singleton
+            }
+        },
+
+        // Watches external processes. This is multiple instance.
+        {
+            "type": "CatchPoint.Agent.Foundation.Logging.RegisterTypeModule, CatchPoint.Agent.Foundation.Logging",
+            "parameters": {
+                "type": "CatchPoint.Agent.Foundation.Object.Processes.ProcessWatcher, CatchPoint.Agent.Foundation.Object",
+                "services": [ "CatchPoint.Agent.Foundation.Object.Processes.IProcessWatcher, CatchPoint.Agent.Foundation.Object" ]
+            }
+        },
+
+        // Maintains TxTestContext for all transaction (TX) tests and all browser-based tests. This will invoke NodeJS to
+        // execute the test. This is multiple instance.
+        {
+            "type": "CatchPoint.Agent.Foundation.Logging.RegisterTypeModule, CatchPoint.Agent.Foundation.Logging",
+            "parameters": {
+                "type": "CatchPoint.Agent.Services.TxEng.Library.Models.TxTestContext, CatchPoint.Agent.Services.TxEng.Library",
+                "services": [ "Transactional: CatchPoint.Agent.Services.TxEng.Library.Interfaces.ITxTestContext, CatchPoint.Agent.Services.TxEng.Library" ]
+            }
+        },
+
+        // Maintains a test context for all non-browser Single-Url tests. This will bypass NodeJS and execute the test
+        // directly. This is multiple instance.
+        {
+            "type": "CatchPoint.Agent.Foundation.Logging.RegisterTypeModule, CatchPoint.Agent.Foundation.Logging",
+            "parameters": {
+                "type": "CatchPoint.Agent.Services.TxEng.Library.Models.TxSingleUrlTestContext, CatchPoint.Agent.Services.TxEng.Library",
+                "services": [ "NonBrowserSingleUrl: CatchPoint.Agent.Services.TxEng.Library.Interfaces.ITxTestContext, CatchPoint.Agent.Services.TxEng.Library" ]
+            }
+        },
+
+        // Non-Browser WebDriver host. This interacts with plugin test monitors.
+        {
+            "type": "CatchPoint.Agent.Foundation.Logging.RegisterTypeModule, CatchPoint.Agent.Foundation.Logging",
+            "parameters": {
+                "type": "CatchPoint.Agent.Services.TxEng.Library.Internal.WebDriver.NonBrowserWebDriverRemote, CatchPoint.Agent.Services.TxEng.Library",
+                "services": [ "Transactional: CatchPoint.Agent.Services.TxEng.Library.Internal.WebDriver.INonBrowserWebDriverRemote, CatchPoint.Agent.Services.TxEng.Library" ]
+            }
+        },
+
+        // Non-Browser Single url direct. This interacts with plugin test monitors.
+        {
+            "type": "CatchPoint.Agent.Foundation.Logging.RegisterTypeModule, CatchPoint.Agent.Foundation.Logging",
+            "parameters": {
+                "type": "CatchPoint.Agent.Services.TxEng.Library.Internal.WebDriver.NonBrowserSingleUrlWebDirect, CatchPoint.Agent.Services.TxEng.Library",
+                "services": [ "NonBrowserSingleUrl: CatchPoint.Agent.Services.TxEng.Library.Internal.WebDriver.INonBrowserWebDriverRemote, CatchPoint.Agent.Services.TxEng.Library" ]
+            }
+        },
+        // #endregion
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // #region EXTERNAL MICROSERVICE MESSAGES SECTION
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        // Register to talk to the TestEng
+        { "type": "CatchPoint.Agent.Services.Messages.Registration.TestEngMessagesModule, CatchPoint.Agent.Services.Messages" }
+
+        // #endregion
+
+        // TODO: Register any other configurable modules here.
+    ],
+
+    "components": [
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // #region MESSAGES SECTION
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        // TODO: Define all custom message type registrations here. This section will basically document the messaging
+        // API of the microservice.
+
+        // NOTES:
+        // * All message reside in the CatchPoint.Agent.Services.Messages library, so the types must be qualified
+        //   with the assembly name (e.g. "<type name>, <assembly name>").
+        //
+        // * All messages have instance-per-dependency lifetimes, which is the default for the container, so there is
+        //   no need to specify the "instanceScope" element.
+
+        // INBOUND MESSAGES - Messages received by the microservice on its Operations channel.
+        // Transaction-Execute-Message: Sent by the TestEng or other microservice and describes a test transaction.
+        {
+            "type": "CatchPoint.Agent.Services.Messages.Models.TxEng.TransactionExecuteScriptMessage, CatchPoint.Agent.Services.Messages",
+            "services": [ { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITransactionExecuteScriptMessage, CatchPoint.Agent.Services.Messages" } ]
+        },
+
+        // Txi-Execute-Web-Driver-Command-Message: Sent by the TxInterpreter to instruct the TxEng to perform a WebDriver command.
+        // Example actions: NEW_SESSION, GET, QUIT
+        {
+            "type": "CatchPoint.Agent.Services.Messages.Models.TxEng.TxiExecuteWebDriverCommandMessage, CatchPoint.Agent.Services.Messages",
+            "services": [ { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITxiExecuteWebDriverCommandMessage, CatchPoint.Agent.Services.Messages" } ]
+        },
+
+        // Txi-Script-Complete-Message: Sent by the the TxInterpreter to indicate completion of the transaction
+        {
+            "type": "CatchPoint.Agent.Services.Messages.Models.TxEng.TxiScriptCompleteMessage, CatchPoint.Agent.Services.Messages",
+            "services": [ { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITxiScriptCompleteMessage, CatchPoint.Agent.Services.Messages" } ]
+        },
+
+        // OUTBOUND MESSAGES - Response messages sent out by the microservice on its Output channel.
+        // Transaction-Result-Available: Sent to the TestEngine or requesting microservice to indicate that that transaction test result is available.
+        {
+            "type": "CatchPoint.Agent.Services.Messages.Models.TxEng.TransactionResultAvailableMessage, CatchPoint.Agent.Services.Messages",
+            "services": [ { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITransactionResultAvailableMessage, CatchPoint.Agent.Services.Messages" } ]
+        },
+        // Txi-Execute-Script-Message: Sent from the TxEng to the Interpreter
+        {
+            "type": "CatchPoint.Agent.Services.Messages.Models.TxEng.TxiExecuteTxScriptMessage, CatchPoint.Agent.Services.Messages",
+            "services": [ { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITxiExecuteTxScriptMessage, CatchPoint.Agent.Services.Messages" } ]
+        },
+
+        // Txi-Web-Driver-Command-Response-Message: Sent to the the TxInterpreter to indicate the result of a command.
+        {
+            "type": "CatchPoint.Agent.Services.Messages.Models.TxEng.TxiWebDriverCommandResponseMessage, CatchPoint.Agent.Services.Messages",
+            "services": [ { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITxiWebDriverCommandResponseMessage, CatchPoint.Agent.Services.Messages" } ]
+        },
+
+        // MESSAGE ENTITIES - Data entities used by one or more messages.
+        // TestEnvelope - test and test results context envelope.
+        {
+            "type": "CatchPoint.Agent.Services.Messages.Models.TestEnvelope, CatchPoint.Agent.Services.Messages",
+            "services": [ { "type": "CatchPoint.Agent.Services.Messages.Interfaces.ITestEnvelope, CatchPoint.Agent.Services.Messages" } ]
+        },
+
+        // TxEnvelope - transaction-specific context envelope used between TxEng and TxInterp.
+        {
+            "type": "CatchPoint.Agent.Services.Messages.Models.TxEng.TxEnvelope, CatchPoint.Agent.Services.Messages",
+            "services": [ { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITxEnvelope, CatchPoint.Agent.Services.Messages" } ]
+        },
+        // #endregion
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // LINE-OF-BUSINESS COMPONENTS SECTION (NON-LOGGING)
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        // TODO: Define all component registrations here for the Line-of-Business (LOB) components. These are the
+        // primary classes in the microservice's supporting library that carry out the main responsibilities of the
+        // microservice
+
+        // (EXPERIMENTAL) This is another explicit object factory. This one is for all the TxEng messages.
+        {
+            "type": "CatchPoint.Agent.Services.Messages.Models.TxEng.TxEngMessagesFactory, CatchPoint.Agent.Services.Messages",
+            "services": [
+                { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITransactionExecuteScriptMessageFactory, CatchPoint.Agent.Services.Messages" },
+                { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITransactionResultAvailableMessageFactory, CatchPoint.Agent.Services.Messages" },
+                { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITxEnvelopeFactory, CatchPoint.Agent.Services.Messages" },
+                { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITxiExecuteScriptMessageFactory, CatchPoint.Agent.Services.Messages" },
+                { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITxiExecuteWebDriverCommandMessageFactory, CatchPoint.Agent.Services.Messages" },
+                { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITxiWebDriverCommandResponseMessageFactory, CatchPoint.Agent.Services.Messages" },
+                { "type": "CatchPoint.Agent.Services.Messages.Interfaces.TxEng.ITxiScriptCompleteMessageFactory, CatchPoint.Agent.Services.Messages" }
+            ],
+            "instanceScope": "perlifetimescope" // container singleton
+        },
+
+        // TODO: [FACTORY] Remove once formal Factory support added to Foundation.Container library
+        // Object factory for internal TxEng components.
+        {
+            "type": "CatchPoint.Agent.Services.TxEng.Library.Internal.ObjectFactory",
+            "services": [
+                { "type": "CatchPoint.Agent.Services.TxEng.Library.Internal.WebDriver.INonBrowserWebDriverRemoteFactory" },
+                { "type": "CatchPoint.Agent.Foundation.Object.Processes.IProcessFactory, CatchPoint.Agent.Foundation.Object" },
+                { "type": "CatchPoint.Agent.Services.TxEng.Library.Internal.Models.ITxTestContextFactory" }
+            ],
+            "instanceScope": "perlifetimescope" // container singleton
+        },
+
+        // TODO: #Process Remove once moved to Foundation.Tasks library.
+        // Simple wrapper around the .NET Framework Process class. This is multiple instance.
+        {
+            "type": "CatchPoint.Agent.Foundation.Object.Processes.FxProcess, CatchPoint.Agent.Foundation.Object",
+            "services": [ { "type": "CatchPoint.Agent.Foundation.Object.Processes.IProcess, CatchPoint.Agent.Foundation.Object" } ]
+        },
+
+        // Override registration to allow the TestMonitorPolicy object to be multiple instance. This is needed for the
+        // plugin test monitors to get unique per-plugin global policies.
+        // TODO: [POLICY][CONTAINER] Need to provide internal mechanism for override registrations like this.
+        {
+            "type": "CatchPoint.Agent.Monitor.Hosting.Internal.TestMonitorPolicy, CatchPoint.Agent.Monitor.Hosting",
+            "services": [ { "type": "CatchPoint.Agent.Monitor.Sdk.Interfaces.ITestMonitorPolicy, CatchPoint.Agent.Monitor.Sdk" } ]
+        },
+
+        // Dummy IJsonProxyConfigPolicySource for TxEng since IProxyConfigPolicy is synchronized from CommEng
+        {
+            "type": "CatchPoint.Agent.Services.TxEng.Library.Internal.Proxy.DummyJsonProxyConfigPolicySource, CatchPoint.Agent.Services.TxEng.Library",
+            "services": [ { "type": "CatchPoint.Agent.Services.MicroserviceProcess.Internal.Proxy.Legacy.IJsonProxyConfigPolicySource, CatchPoint.Agent.Services.MicroserviceProcess" } ],
+            "instanceScope": "perlifetimescope" // container singleton
+        },
+
+
+        // Test timeout calculator      
+        // Dummy IJsonProxyConfigPolicySource for TxEng since IProxyConfigPolicy is synchronized from CommEng
+        {
+            "type": "CatchPoint.Agent.Services.TxEng.Library.Internal.BusinessObjects.TestTimeoutCalculator, CatchPoint.Agent.Services.TxEng.Library",
+            "services": [ { "type": "CatchPoint.Agent.Services.TxEng.Library.Internal.BusinessObjects.ITestTimeoutCalculator, CatchPoint.Agent.Services.TxEng.Library" } ],
+            "instanceScope": "perlifetimescope" // container singleton
+        }
+    ]
+}
